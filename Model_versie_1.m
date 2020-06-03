@@ -174,7 +174,7 @@ clear, clc, clf, close all
     ylim([ -1000 1000]);
     xlabel('Tijd [seconden]')
     hold off
-
+%%
 % Analyse eigen model
     % Model en parameters gebaseerd op McSpadden (1998)
     % teta = hoek in graden
@@ -189,16 +189,16 @@ clear, clc, clf, close all
     M = 0.748;              % gram
 
 %Mechanisch model ogen
-    %wn = sqrt(K_g/J_g);                 % Natural frequency
+%     wn = sqrt(K_g/J_g);                 % Natural frequency
     wn = 10;
-    %mu = B_g/(2*sqrt(K_g*J_g));         % Damping ratio
+%     mu = B_g/(2*sqrt(K_g*J_g));         % Damping ratio
     mu = 1.5;
     wdamped = wn*sqrt(1-(mu^2));          % Damped natural frequency
     k_1 = 1/K_g;                        % System gain eyes
 
 % Westheimer parameters
-    % wn = 120;
-    % mu = 5;
+     wn = 120;
+     mu = 5;
 
 % Eigenschappen transferfunctie ogen
     Transferfunction_eyes = tf([k_1],[1/wn (2*mu)/wn 1]);
