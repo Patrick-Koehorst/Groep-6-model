@@ -8,15 +8,15 @@ clear, clc, clf, close all
 % Input
     t_max=20;         % feel free to choose a different end time of your simulation
     t=[0:1e-3:t_max]; % do NOT change the time-step 1e-3
+    time = 0:1:10;
 
 % Eigen signaal
-
         % Invoeren condities TRIANGLE
         % Stap 1: Voer de maximale angle in {maximaal 34 graden, enkel positief}
         % Stap 2: Voer de gewenste hoeksnelheid in
 
-        maxAngle_invoer = 15;
-        Hoeksnelheid = 60;                      %graden per seconde
+        maxAngle_invoer = 34;
+        Hoeksnelheid = 200;                      %graden per seconde
         snelheid = Hoeksnelheid*1e-3;           %graden per millisec
 
         % Invoeren condities STEP
@@ -24,14 +24,14 @@ clear, clc, clf, close all
         % Stap 2: Voer de gewenste pulsduur in
 
         pulsen_per_seconde = 1;
-        pulsduur = .2; %sec
+        pulsduur = 0.2; %sec
         frequentie_puls = length(t)/((length(t)*1e-3)*pulsen_per_seconde);
         pulslengte = pulsduur/1e-3; %vectoreenheden
-
+        
         % Signaal
         F(:,1) = t;
         F(:,2) = 0;
-        list = {'Triangle','Steps','Cancel'};
+        list = {'Triangle','Steps', 'Cancel'};
         [idx,tf1] = listdlg("ListString",list);
         switch idx
             case 1
@@ -83,7 +83,8 @@ clear, clc, clf, close all
 
 
             case 3
-                return
+            
+            return
         end
 
 % Analyse aangereikt model
@@ -91,7 +92,7 @@ clear, clc, clf, close all
     phi_head=zeros(1,length(t));
     phi_laser_space = F; 
     phi_head_space=[t;phi_head]';
-    sim('BMTM8_vExp2_prot2');
+    sim('BMTM8_vExp1_prot1');
     EOG = EOG.Data';
     Gyr = Gyr.Data';
 
@@ -145,13 +146,17 @@ clear, clc, clf, close all
         n_saccades = length(goodmax')+length(goodmin');
     end
 
+    Return_angle_matrix_PID = [];
+    Return_angle_matrix_PID(1,:) = t;
+    Return_angle_matrix_PID(2,:) = Return_angle_matrix;
+    
 % Plotten van resultaten
     figure(1)
     subplot (2,2,1), hold on
     plot (phi_laser_space(:,1), phi_laser_space(:,2))
     plot (t, Return_angle_matrix) 
     legend ('Inputsignaal', 'Outputsignaal')
-    title ({['Inputsignaal en outputsignaal met snelheid ',num2str(Hoeksnelheid),' graden/s over tijd']});
+    title ({['Inputsignaal en outputsignaal met snelheid ',num2str(Hoeksnelheid),' graden/s over tijd (Aangeleverd model)']});
     ylabel('Hoek [graden]');
     ylim ([-50 50])
     xlabel('Tijd [seconden]')
@@ -168,13 +173,13 @@ clear, clc, clf, close all
         end
 
     title ({'Hoeksnelheden ogen en signaal',[num2str(n_saccades),' saccades']})
-    legend ('Hoeksnelheid ogen', 'Saccades naar rechts', 'Saccades naar links', 'Hoeksnelheid signaal');
+    legend ('Hoeksnelheid ogen', 'Saccades naar rechts', 'Saccades naar links', 'Hoeksnelheid signaal (Aangeleverd model)');
     ylabel('Hoeksnelheid [graden/seconde]')
     xlim ([0 5])
     ylim([ -1000 1000]);
     xlabel('Tijd [seconden]')
     hold off
-%%
+
 % Analyse eigen model
     % Model en parameters gebaseerd op McSpadden (1998)
     % teta = hoek in graden
@@ -189,71 +194,35 @@ clear, clc, clf, close all
     M = 0.748;              % gram
 
 %Mechanisch model ogen
-%     wn = sqrt(K_g/J_g);                 % Natural frequency
-    wn = 10;
-%     mu = B_g/(2*sqrt(K_g*J_g));         % Damping ratio
-    mu = 1.5;
-    wdamped = wn*sqrt(1-(mu^2));          % Damped natural frequency
+    wn = sqrt(K_g/J_g);                 % Natural frequency
+    mu = B_g/(2*sqrt(K_g*J_g));         % Damping ratio
+    wdamped = wn*sqrt(1-(mu^2));        % Damped natural frequency
     k_1 = 1/K_g;                        % System gain eyes
-
-% Westheimer parameters
-     wn = 120;
-     mu = 5;
-
+    
 % Eigenschappen transferfunctie ogen
-    Transferfunction_eyes = tf([k_1],[1/wn (2*mu)/wn 1]);
+    Transferfunction_eyes = tf([(wn^2/k_1)],[1 (2*mu*wn) wn^2]);
     figure()
     title ('Overdracht ogen')
     subplot (1,3,1), hold on
     rlocus(Transferfunction_eyes)
+    
     subplot (1,3,2), hold on
     bode(Transferfunction_eyes)
     subplot (1,3,3), hold on
     nyquist (Transferfunction_eyes)
     hold off
-
+    
 % Omzetten naar constanten model
-    Time_delay = 0.00;
+    Time_delay = 0.01;
 
 % Hersenen
-% Beschrijving geven van:
-
-% 1. Saccade magnitude/amplitude
-    % saccade_magnitude = 20;             %degrees
-
-% 2. Time to peak overshoot (geeft indicatie van duur saccade) (Enderle)
-    % Uit Enderle (experimenteel)
-        % saccade_duur_pos = 0.00181*saccade_magnitude_pos+0.025;     % [sec]
-        % saccade_duur_neg = -0.00243*saccade_magnitude_pos+0.020;    % [sec]
-
-    % Uit Westheimer (constante) (Zie Enderle hfst 3.2.1)
-        %Tp = pi/(wn*sqrt(1-mu^2));
-        Tp = 0.037;
-
-% 3. Peak velocity
-    % Parameters alfa & beta uit Enderle voor fit v_max in positieve (naar
-    % rechts) en negatieve (naar links) richting
-        % alfa_pos = 825;             % steady-state peak velocity-saccade magnitude curve
-        % alfa_neg = 637;             % steady-state peak velocity-saccade magnitude curve
-        % beta_pos = 9.3;             % the “time constant” for the peak velocity-saccade magnitude curve
-        % beta_neg = 6.9;             % the “time constant” for the peak velocity-saccade magnitude curve
-        % 
-        % v_max_pos = alfa_pos*(1-exp(-saccade_magnitude_pos/beta_pos));    % Peak velocity uit Enderle (1.1) voor positieve saccade (maximaal 400 degree/sec)
-        % v_max_neg = alfa_neg*(1-exp(-saccade_magnitude_neg/beta_neg));    % Peak velocity uit Enderle (1.1) voor negatatieve saccade (maximaal 400 degree/sec)
-
-% Uit Westheimer (constante) (Zie Enderle hfst 3.2.2)
-    wd = pi/Tp;
-    Tmv = (1/wd)*atan(sqrt(1-mu^2)/mu);         % Time at peak velocity
-
-% Latente periode na een saccade (zou onafhankelijk van saccade magnitude
-    % zijn, wordt niet verder op ingegaan in Enderle)
-    % t_latent = 0.17
-
-% Gain signaal vanuit Brein
-    Gain_brain = 20;
-
+    Brain_gain = 3;
+    
+% Saccade
+    Saccade_gain = 6;
+       
 % Simulink Simulatie
-    sim('testmodel_3');
+    sim('testmodel_5_clean');
 
     % Berekenen van minima en maxima in speed_eyes-array
     [maxtab, mintab] = peakdet(Speed_eyes_simulink, 70, t);
@@ -282,13 +251,15 @@ clear, clc, clf, close all
     plot (Angle_laser_simulink)
     plot (Angle_eyes_simulink) 
     legend ('Inputsignaal', 'Outputsignaal')
-    title ({['Inputsignaal en outputsignaal met snelheid ',num2str(Hoeksnelheid),' graden/s over tijd']});
+    title ({['Inputsignaal en outputsignaal met snelheid ',num2str(Hoeksnelheid),' graden/s over tijd (Eigen model)']});
     ylabel('Hoek [graden]');
     ylim ([-50 50])
     xlabel('Tijd [seconden]')
     hold off
 
     subplot (2,2,4), hold on
+    %plot (t,Gain_signal)
+    %plot (t,Step_signal)
         if isempty(maxtab)& isempty(mintab)
             plot(t,Speed_eyes_simulink)
             plot(t,Speed_laser_simulink)
@@ -297,9 +268,10 @@ clear, clc, clf, close all
             plot (goodmax(:,1), goodmax(:,2), 'r*', goodmin(:,1), goodmin(:,2), 'g*')
             plot(t,Speed_laser_simulink), hold off
         end
-
+        
+   
     title ({'Hoeksnelheden ogen en signaal',[num2str(n_saccades),' saccades']})
-    legend ('Hoeksnelheid ogen', 'Saccades naar rechts', 'Saccades naar links', 'Hoeksnelheid signaal');
+    legend ('Hoeksnelheid ogen', 'Saccades naar rechts', 'Saccades naar links', 'Hoeksnelheid signaal (Eigen model)');
     ylabel('Hoeksnelheid [graden/seconde]')
     xlim ([0 5])
     ylim([ -1000 1000]);
